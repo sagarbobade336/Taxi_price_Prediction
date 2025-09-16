@@ -1,0 +1,129 @@
+import pandas as pd
+from sklearn.model_selection import train_test_split
+from sklearn.linear_model import LinearRegression
+from sklearn.ensemble import RandomForestRegressor, GradientBoostingRegressor
+from sklearn.metrics import r2_score, mean_squared_error
+import pickle
+import numpy as np
+
+def preprocess_data(df: pd.DataFrame) -> tuple:
+    """
+    Handles data preprocessing steps including handling missing values and
+    encoding categorical features.
+
+    Args:
+        df (pd.DataFrame): The raw DataFrame.
+
+    Returns:
+        tuple: A tuple containing the preprocessed features (X) and target (y).
+    """
+    print("--- Data Preprocessing ---")
+    
+    # Drop rows with any missing values
+    df.dropna(inplace=True)
+    print("Missing values handled by dropping rows.")
+
+    # Convert categorical features into numerical using one-hot encoding
+    categorical_cols = ['Time_of_Day', 'Day_of_Week', 'Traffic_Conditions', 'Weather']
+    df = pd.get_dummies(df, columns=categorical_cols, drop_first=True)
+    print(" Categorical features encoded.")
+    
+    # Define features (X) and target (y)
+    # The target is 'Trip_Price', the rest are features
+    X = df.drop('Trip_Price', axis=1)
+    y = df['Trip_Price']
+    
+    return X, y
+
+def train_and_evaluate_models(X_train: pd.DataFrame, X_test: pd.DataFrame, y_train: pd.Series, y_test: pd.Series) -> dict:
+    """
+    Trains and evaluates multiple regression models.
+
+    Args:
+        X_train, X_test (pd.DataFrame): Training and testing feature sets.
+        y_train, y_test (pd.Series): Training and testing target sets.
+
+    Returns:
+        dict: A dictionary containing the trained models and their scores.
+    """
+    print("\n--- Training and Evaluating Models ---")
+    
+    # Initialize the models
+    models = {
+        "Linear Regression": LinearRegression(),
+        "Random Forest Regressor": RandomForestRegressor(n_estimators=100, random_state=42),
+        "Gradient Boosting Regressor": GradientBoostingRegressor(n_estimators=100, learning_rate=0.1, random_state=42)
+    }
+
+    results = {}
+    for name, model in models.items():
+        print(f"\nTraining {name}...")
+        model.fit(X_train, y_train)
+        y_pred = model.predict(X_test)
+        
+        # Calculate evaluation metrics
+        r2 = r2_score(y_test, y_pred)
+        mse = mean_squared_error(y_test, y_pred)
+        
+        results[name] = {
+            'model': model,
+            'r2_score': r2,
+            'mse': mse
+        }
+        
+        print(f" {name} trained.")
+        print(f"   R-squared (R2): {r2:.4f}")
+        print(f"   Mean Squared Error (MSE): {mse:.4f}")
+        
+    return results
+
+def select_and_save_best_model(results: dict, filename: str):
+    """
+    Selects the best model based on R-squared score and saves it to a pickle file.
+    """
+    print("\n--- Selecting Best Model ---")
+    best_model_name = ""
+    best_r2_score = -np.inf
+    
+    for name, res in results.items():
+        if res['r2_score'] > best_r2_score:
+            best_r2_score = res['r2_score']
+            best_model_name = name
+            
+    best_model = results[best_model_name]['model']
+    # Change the trophy emoji to a simple, descriptive text.
+    print(f"The best model is '{best_model_name}' with an R-squared score of {best_r2_score:.4f}")
+    
+    # Save the best model using pickle
+    with open(filename, 'wb') as file:
+        pickle.dump(best_model, file)
+    
+    print(f"Success: Best model saved to '{filename}'.")
+
+if __name__ == "__main__":
+    # Load the data
+    try:
+        # Use a raw string with the full path to the file to avoid location issues
+        # and syntax errors.
+        file_path = r"C:\Users\Admin\OneDrive\Desktop\Taxi_prediction\taxi_trip_pricing.csv"
+        df = pd.read_csv(file_path)
+        print("Success: Data loaded.")
+    except FileNotFoundError:
+        print("Error: The file was not found. Please check the file path.")
+        exit()
+    except Exception as e:
+        print(f"An unexpected error occurred: {e}")
+        exit()
+
+    # Preprocess the data
+    X, y = preprocess_data(df)
+    
+    # Split the data into training and testing sets
+    X_train, X_test, y_train, y_test = train_test_split(X, y, test_size=0.2, random_state=42)
+    print("Success: Data split into training (80%) and testing (20%) sets.")
+
+    # Train and evaluate models
+    model_results = train_and_evaluate_models(X_train, X_test, y_train, y_test)
+    
+    # Select and save the best model
+    select_and_save_best_model(model_results, "best_taxi_model.pkl")

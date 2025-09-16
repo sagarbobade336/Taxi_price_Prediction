@@ -1,0 +1,102 @@
+import pandas as pd
+import pymysql
+from typing import Optional
+
+def load_and_insert_taxi_data(
+    file_path: str,
+    db_host: str,
+    db_user: str,
+    db_password: str,
+    db_name: str,
+    table_name: str
+) -> None:
+    """
+    Loads data from a CSV file into a pandas DataFrame and then inserts it into a MySQL database.
+
+    Args:
+        file_path (str): The path to the CSV file.
+        db_host (str): The MySQL database host.
+        db_user (str): The MySQL database username.
+        db_password (str): The MySQL database password.
+        db_name (str): The name of the database to use.
+        table_name (str): The name of the table to create and insert data into.
+    """
+    try:
+        # --- 1. Load data from CSV using pandas ---
+        df = pd.read_csv(file_path)
+        print(f"Success: Data loaded successfully from '{file_path}' into a DataFrame.")
+        print("\nDataFrame Info:")
+        df.info()
+
+        # Sanitize column names for SQL compatibility (e.g., replace spaces with underscores)
+        df.columns = [col.replace(' ', '_').replace('.', '').replace('-', '_') for col in df.columns]
+
+        # --- 2. MySQL Connection Setup and Database Creation ---
+        print("\nConnecting to MySQL server...")
+        connection = pymysql.connect(
+            host=db_host,
+            user=db_user,
+            password=db_password,
+            autocommit=True
+        )
+        cursor = connection.cursor()
+
+        # Create the database if it does not exist
+        cursor.execute(f"CREATE DATABASE IF NOT EXISTS {db_name}")
+        cursor.execute(f"USE {db_name}")
+        print(f"Success: Connected to MySQL and using database '{db_name}'.")
+
+        # --- 3. Create table based on DataFrame columns and dtypes ---
+        print(f"Creating table '{table_name}'...")
+        columns_with_types = []
+        for col, dtype in df.dtypes.items():
+            if pd.api.types.is_numeric_dtype(dtype):
+                sql_type = "FLOAT"
+            elif pd.api.types.is_string_dtype(dtype):
+                # Using VARCHAR with a generous length for text columns
+                sql_type = "VARCHAR(255)"
+            else:
+                # Default to a general purpose text type for other cases
+                sql_type = "TEXT"
+            columns_with_types.append(f"`{col}` {sql_type}")
+        
+        create_table_sql = f"CREATE TABLE IF NOT EXISTS `{table_name}` ({', '.join(columns_with_types)})"
+        cursor.execute(create_table_sql)
+        print(f"Success: Table '{table_name}' created or already exists.")
+
+        # --- 4. Insert DataFrame rows into the table ---
+        print("\nInserting data into the table...")
+        insert_sql = f"INSERT INTO `{table_name}` VALUES ({', '.join(['%s'] * len(df.columns))})"
+        
+        # Convert DataFrame rows to a list of tuples for batch insertion
+        rows_to_insert = [tuple(row) for row in df.to_records(index=False)]
+        
+        # Use executemany for efficient batch insertion
+        cursor.executemany(insert_sql, rows_to_insert)
+        
+        print(f"Success: Successfully inserted {len(rows_to_insert)} rows into '{table_name}'.")
+
+    except FileNotFoundError:
+        print(f"Error: The file '{file_path}' was not found.")
+    except pymysql.Error as e:
+        print(f"Error: A MySQL error occurred: {e}")
+    except Exception as e:
+        print(f"Error: An unexpected error occurred: {e}")
+    finally:
+        if 'connection' in locals() and connection.open:
+            cursor.close()
+            connection.close()
+            print("Success: MySQL connection closed.")
+
+if __name__ == "__main__":
+    # --- Configuration for your MySQL database ---
+    # Use a raw string with 'r' to avoid the SyntaxError
+    # And correct the file extension to match the actual file type
+    FILE_PATH = r"C:\Users\Admin\OneDrive\Desktop\Taxi_prediction\taxi_trip_pricing.csv"
+    DB_HOST = "localhost"
+    DB_USER = "root"
+    DB_PASSWORD = "sagar123"
+    DB_NAME = "taxi_prediction"
+    TABLE_NAME = "taxi_trips"
+
+    load_and_insert_taxi_data(FILE_PATH, DB_HOST, DB_USER, DB_PASSWORD, DB_NAME, TABLE_NAME)
