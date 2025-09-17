@@ -1,2 +1,2 @@
 # Taxi_price_Prediction
-*App.py ---> https://taxipriceprediction-mfpxumtrgaav2682qqjsjg.streamlit.app/
+*App.py ---> https://taxipriceprediction-6szyujak6pfys8mpshj8qr.streamlit.app/
