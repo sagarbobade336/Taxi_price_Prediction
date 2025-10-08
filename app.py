@@ -97,4 +97,5 @@ if st.button("Predict Trip Price"):
         prediction = model.predict(encoded_input_aligned)[0]
         st.header(f"💰 Predicted Trip Price: ${prediction:.2f}")
     except Exception as e:
+
         st.error(f"Prediction failed. Please check the input values and model compatibility. Error: {e}")
